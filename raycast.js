@@ -81,19 +81,74 @@ class Player {
         noStroke();
         fill("red");
         circle(this.x, this.y, this.radius);
-        stroke("red");
-        line(
-            this.x, 
-            this.y,
-            this.x + Math.cos(this.rotationAngle) * 20,
-            this.y + Math.sin(this.rotationAngle) * 20
-            );
+        // stroke("red");
+        // line(
+        //     this.x, 
+        //     this.y,
+        //     this.x + Math.cos(this.rotationAngle) * 20,
+        //     this.y + Math.sin(this.rotationAngle) * 20
+        //     );
     }
 }
 
 class Ray {
     constructor(rayAngle) {
-        this.rayAngle = rayAngle;
+        this.rayAngle = normalizeAngle(rayAngle);
+        this.wallHitX = 0;
+        this.wallHitY = 0;
+        this.distance = 0;
+
+        this.isRayFacingDown = this.rayAngle > 0 && this.rayAngle < Math.PI;
+        this.isRayFacingUp = !this.isRayFacingDown;
+
+        this.isRayFacingRight = this.rayAngle < 0.5 * Math.PI || this.rayAngle > 1.5 * Math.PI;
+        this.isRayFacingLeft = !this.isRayFacingRight;
+    }
+    cast(columnId) {
+        let xintercept, yintercept;
+        let xstep, ystep;
+
+        let foundHorzWallHit = false;
+        let wallHitX = 0;
+        let wallHitY = 0;
+
+        console.log("isRayFacingRight?", this.isRayFacingRight);
+
+        yintercept = Math.floor(player.y / TILE_SIZE) * TILE_SIZE;
+        yintercept += this.isRayFacingDown ? TILE_SIZE : 0;
+
+        xintercept = player.x + (yintercept - player.y) / Math.tan(this.rayAngle);
+
+        ystep = TILE_SIZE;
+        ystep *= this.isRayFacingUp ? -1 : 1;
+
+        xstep = TILE_SIZE / Math.tan(this.rayAngle);
+        xstep *= (this.isRayFacingLeft && xstep > 0) ? -1 : 1;
+        xstep *= (this.isRayFacingRight && xstep <0) ? -1 : 1;
+
+        let nextHorzTouchX = xintercept;
+        let nextHorzTouchY = yintercept;
+
+        if (this.isRayFacingUp) {
+            nextHorzTouchY--;
+        }
+
+        while(nextHorzTouchY >= 0 && nextHorzTouchX <= WINDOW_WIDTH && 
+            nextHorzTouchY >= 0 && nextHorzTouchY <= WINDOW_HEIGHT) {
+            if (grid.hasWallAt(nextHorzTouchX, nextHorzTouchY)) {
+                // WE FOUND A WALL HIT
+                foundHorzWallHit = true;
+                wallHitX = nextHorzTouchX;
+                wallHitY = nextHorzTouchY;
+
+                stroke("red");
+                line(player.x, player.y, wallHitX, wallHitY);
+                break;
+            } else {
+                nextHorzTouchY += xstep;
+                nextHorzTouchY += ystep;
+            }
+        }
     }
     render() {
         stroke("rgba(255, 0, 0, 0.3)");
@@ -139,8 +194,10 @@ function castAllRays() {
     let rayAngle = player.rotationAngle - (FOV_ANGLE / 2);
 
     rays = [];
-    for (let i = 0; i < NUM_RAYS; i++) {
+    // for (let i = 0; i < NUM_RAYS; i++) {
+    for (let i = 0; i < 1; i++) {
         let ray = new Ray(rayAngle);
+        ray.cast(columnId);
 
         rays.push(ray);
 
@@ -148,6 +205,16 @@ function castAllRays() {
 
         columnId++;
     }
+}
+
+function normalizeAngle(angle) {
+    angle = angle % (2 * Math.PI);
+
+    if (angle < 0) {
+        angle = (2 * Math.PI) + angle;
+    }
+
+    return angle;
 }
 
 function setup() {
@@ -159,7 +226,6 @@ function setup() {
 function update() {
     // TODO: upadate all game objects before we render the next frame
     player.update();
-    castAllRays();
 }
 
 function draw() {
@@ -171,4 +237,5 @@ function draw() {
         ray.render();
     }
     player.render();
+    castAllRays();
 }
