@@ -10,6 +10,8 @@ const FOV_ANGLE = 60 * (Math.PI / 180);
 const WALL_STRIP_WIDTH = 1;
 const NUM_RAYS = WINDOW_WIDTH / WALL_STRIP_WIDTH;
 
+const MINIMAP_SCALE_FACTOR = 0.2;
+
 class Map {
     constructor() {
         this.grid = [
@@ -45,7 +47,12 @@ class Map {
 
                 stroke("#222");
                 fill(tileColor);
-                rect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+                rect(
+                    MINIMAP_SCALE_FACTOR * tileX, 
+                    MINIMAP_SCALE_FACTOR * tileY, 
+                    MINIMAP_SCALE_FACTOR * TILE_SIZE, 
+                    MINIMAP_SCALE_FACTOR * TILE_SIZE
+                );
             }
         }
     }
@@ -80,14 +87,18 @@ class Player {
     render() {
         noStroke();
         fill("red");
-        circle(this.x, this.y, this.radius);
-        // stroke("red");
-        // line(
-        //     this.x, 
-        //     this.y,
-        //     this.x + Math.cos(this.rotationAngle) * 20,
-        //     this.y + Math.sin(this.rotationAngle) * 20
-        //     );
+        circle(
+            MINIMAP_SCALE_FACTOR * this.x, 
+            MINIMAP_SCALE_FACTOR * this.y, 
+            MINIMAP_SCALE_FACTOR * this.radius
+        );
+        stroke("blue");
+        line(
+            MINIMAP_SCALE_FACTOR * this.x, 
+            MINIMAP_SCALE_FACTOR * this.y,
+            MINIMAP_SCALE_FACTOR * (this.x + Math.cos(this.rotationAngle) * 20),
+            MINIMAP_SCALE_FACTOR * (this.y + Math.sin(this.rotationAngle) * 20)
+        );
     }
 }
 
@@ -105,7 +116,7 @@ class Ray {
         this.isRayFacingRight = this.rayAngle < 0.5 * Math.PI || this.rayAngle > 1.5 * Math.PI;
         this.isRayFacingLeft = !this.isRayFacingRight;
     }
-    cast(columnId) {
+    cast() {
         let xintercept, yintercept;
         let xstep, ystep;
 
@@ -129,20 +140,18 @@ class Ray {
         let nextHorzTouchX = xintercept;
         let nextHorzTouchY = yintercept;
 
-        if (this.isRayFacingUp) {
-            nextHorzTouchY--;
-        }
+        // if (this.isRayFacingUp) {
+        //     nextHorzTouchY--;
+        // }
 
         while (nextHorzTouchY >= 0 && nextHorzTouchX <= WINDOW_WIDTH && 
             nextHorzTouchY >= 0 && nextHorzTouchY <= WINDOW_HEIGHT) {
-            if (grid.hasWallAt(nextHorzTouchX, nextHorzTouchY)) {
+            if (grid.hasWallAt(nextHorzTouchX, nextHorzTouchY - (this.isRayFacingUp ? 1 : 0))) {
                 // WE FOUND A WALL HIT
                 foundHorzWallHit = true;
                 horzWallHitX = nextHorzTouchX;
                 horzWallHitY = nextHorzTouchY;
 
-                stroke("red");
-                line(player.x, player.y, horzWallHitX, horzWallHitY);
                 break;
             } else {
                 nextHorzTouchX += xstep;
@@ -170,13 +179,13 @@ class Ray {
         let nextVertTouchX = xintercept;
         let nextVertTouchY = yintercept;
 
-        if (this.isRayFacingLeft) {
-            nextVertTouchX--;
-        }
+        // if (this.isRayFacingLeft) {
+        //     nextVertTouchX--;
+        // }
 
         while (nextVertTouchX >= 0 && nextVertTouchX <= WINDOW_WIDTH && 
             nextVertTouchY >= 0 && nextVertTouchY <= WINDOW_HEIGHT) {
-            if (grid.hasWallAt(nextVertTouchX, nextVertTouchY)) {
+            if (grid.hasWallAt(nextVertTouchX - (this.isRayFacingLeft ? 1 : 0), nextVertTouchY)) {
                 // WE FOUND A WALL HIT
                 foundVertWallHit = true;
                 vertWallHitX = nextVertTouchX;
@@ -198,20 +207,31 @@ class Ray {
             ? distanceBetweenPoints(player.x, player.y, vertWallHitX, vertWallHitY)
             : Number.MAX_VALUE;
 
-        this.wallHitX = (horzHitDistance < vertHitDistance) ? horzWallHitX : vertWallHitX;
-        this.wallHitY = (horzHitDistance < vertHitDistance) ? horzWallHitY : vertWallHitY;
-        this.distance = (horzHitDistance < vertHitDistance) ? horzHitDistance : vertHitDistance;
-        this.wasHitVertical = (vertHitDistance < horzHitDistance);
+        if (vertHitDistance < horzHitDistance) {
+            this.wallHitX = vertWallHitX;
+            this.wallHitY = vertWallHitY;
+            this.distance = vertHitDistance;
+            this.wasHitVertical = true;
+        } else {
+            this.wallHitX = horzWallHitX;
+            this.wallHitY = horzWallHitY;
+            this.distance = horzHitDistance;
+            this.wasHitVertical = false;
+        }
+        // this.wallHitX = (horzHitDistance < vertHitDistance) ? horzWallHitX : vertWallHitX;
+        // this.wallHitY = (horzHitDistance < vertHitDistance) ? horzWallHitY : vertWallHitY;
+        // this.distance = (horzHitDistance < vertHitDistance) ? horzHitDistance : vertHitDistance;
+        // this.wasHitVertical = (vertHitDistance < horzHitDistance);
 
     }
     render() {
         stroke("rgba(255, 0, 0, 0.3)");
         line(
-            player.x, 
-            player.y,
-            this.wallHitX,
-            this.wallHitY
-            );
+            MINIMAP_SCALE_FACTOR * player.x, 
+            MINIMAP_SCALE_FACTOR * player.y,
+            MINIMAP_SCALE_FACTOR * this.wallHitX,
+            MINIMAP_SCALE_FACTOR * this.wallHitY
+        );
     }
 }
 
@@ -244,19 +264,15 @@ function keyReleased() {
 }
 
 function castAllRays() {
-    let columnId = 0;
     let rayAngle = player.rotationAngle - (FOV_ANGLE / 2);
 
     rays = [];
     for (let i = 0; i < NUM_RAYS; i++) {
         let ray = new Ray(rayAngle);
-        ray.cast(columnId);
-
+        ray.cast();
         rays.push(ray);
 
         rayAngle += FOV_ANGLE / NUM_RAYS;
-
-        columnId++;
     }
 }
 
@@ -274,6 +290,27 @@ function distanceBetweenPoints(x1, y1, x2, y2) {
     return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
+function render3DProjectedWalls() {
+    for (let i = 0; i < NUM_RAYS; i++) {
+        let ray = rays[i];
+        let correctWallDistance = ray.distance * Math.cos(ray.rayAngle - player.rotationAngle);
+        let distanceProjectionPlane = (WINDOW_WIDTH / 2) / Math.tan(FOV_ANGLE / 2);
+        let wallStripHeight = (TILE_SIZE / correctWallDistance) * distanceProjectionPlane;
+
+        let alpha = 1.0;
+        let color = ray.wasHitVertical ? 255 : 180;
+
+        fill(`rgba(${color}, ${color}, ${color}, ${alpha})`);
+        noStroke();
+        rect(
+            i * WALL_STRIP_WIDTH,
+            (WINDOW_HEIGHT / 2) - (wallStripHeight / 2),
+            WALL_STRIP_WIDTH,
+            wallStripHeight
+        );
+    }
+}
+
 function setup() {
     // TODO: initialize all objects
 
@@ -287,8 +324,10 @@ function update() {
 }
 
 function draw() {
+    clear("#212121");
     update();
-    // TODO: render all objects frame by frame
+    
+    render3DProjectedWalls();
     grid.render();
 
     for (ray of rays) {
